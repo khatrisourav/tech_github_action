@@ -1,70 +1,71 @@
-name: Deploy Teacheazy App New version12345
+name: Teacheazy App Infra Management
 
 on:
   push:
-    branches: [ main ]
     tags:
-      - deploy-*
+      - deploy-*     # 🚀 triggers deploy job
+      - destroy-*    # 💣 triggers destroy job
 
 jobs:
   deploy:
-    name: Deploy Infra + App
+    if: startsWith(github.ref_name, 'deploy-')
+    name: 🚀 Deploy Infra + App
     runs-on: ubuntu-latest
 
     env:
       STAGE: dev
 
     steps:
-      - name: Checkout Code
+      - name: 📦 Checkout Code
         uses: actions/checkout@v3
 
-      - name: Set Up Terraform
+      - name: ⚙️ Set Up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.0
 
-      - name: Configure AWS Credentials
+      - name: 🔐 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
-      - name: Terraform Init
+      - name: 🧱 Terraform Init
         working-directory: ./terraform
         run: terraform init
 
-      - name: Terraform Apply
+      - name: 🚀 Terraform Apply
         working-directory: ./terraform
         run: terraform apply -auto-approve -var="stage=${{ env.STAGE }}"
 
-      - name: Get EC2 Public IP
+      - name: 🌐 Get EC2 Public IP & Bucket Name
         working-directory: ./terraform
         run: |
           echo "EC2_IP=$(terraform output -raw ec2_public_ip)" >> $GITHUB_ENV
           echo "BUCKET_NAME=$(terraform output -raw bucket_name)" >> $GITHUB_ENV
 
-      - name: Wait for EC2 to Boot
+      - name: ⏳ Wait for EC2 to Boot
         run: sleep 60
 
-      - name: Save EC2 Private Key
+      - name: 🔑 Save EC2 Private Key
         run: |
           echo "${{ secrets.EC2_PRIVATE_KEY }}" > key.pem
           chmod 600 key.pem
 
-      - name: Run Setup Script on EC2
+      - name: 🛠️ Run Setup Script on EC2
         run: |
           ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ env.EC2_IP }} 'sudo apt update && sudo apt install -y curl && bash -s' < ./scripts/setup.sh
 
-      - name: Deploy App on EC2
+      - name: 🚚 Deploy App on EC2
         run: |
           ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ env.EC2_IP }} 'bash -s' < ./scripts/deploy.sh
 
-      - name: Upload Logs to S3
+      - name: 📤 Upload Logs to S3
         run: |
           ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ env.EC2_IP }} 'bash -s' < ./scripts/uploadlog.sh
 
-      - name: Validate App Health
+      - name: ✅ Validate App Health
         run: |
           for i in {1..10}; do
             if curl -s --head http://${{ env.EC2_IP }} | grep "200 OK" > /dev/null; then
@@ -77,14 +78,45 @@ jobs:
           done
           echo "❌ App did not start!" && exit 1
 
-      - name: ⏳ Wait 25 Minutes Before Cleanup
-        run: sleep 500  # 25 minutes = 25 * 60 seconds
 
-      - name: 🧹 Empty S3 Bucket Before Destroy
+  destroy:
+    if: startsWith(github.ref_name, 'destroy-')
+    name: 💣 Destroy Infra Only
+    runs-on: ubuntu-latest
+
+    env:
+      STAGE: dev
+
+    steps:
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: ⚙️ Set Up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: 🔐 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: 🧱 Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      - name: 🌍 Get Bucket Name
+        working-directory: ./terraform
         run: |
-          aws s3 rm s3://${{ env.BUCKET_NAME }} --recursive
+          echo "BUCKET_NAME=$(terraform output -raw bucket_name)" >> $GITHUB_ENV || true
 
-      - name: 🔥 Terraform Destroy Infrastructure
+      - name: 🧹 Empty S3 Bucket (if exists)
+        if: env.BUCKET_NAME != ''
+        run: aws s3 rm s3://${{ env.BUCKET_NAME }} --recursive || true
+
+      - name: 💥 Terraform Destroy Infra
         working-directory: ./terraform
         run: terraform destroy -auto-approve -var="stage=${{ env.STAGE }}"
 
