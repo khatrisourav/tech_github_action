@@ -78,7 +78,7 @@ jobs:
           echo "❌ App did not start!" && exit 1
 
       - name: ⏳ Wait 25 Minutes Before Cleanup
-        run: sleep 1500  # 25 minutes = 25 * 60 seconds
+        run: sleep 500  # 25 minutes = 25 * 60 seconds
 
       - name: 🧹 Empty S3 Bucket Before Destroy
         run: |
