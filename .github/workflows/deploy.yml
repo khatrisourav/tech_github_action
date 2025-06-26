@@ -110,7 +110,7 @@ jobs:
       - name: 🌍 Get Bucket Name
         working-directory: ./terraform
         run: |
-          echo "BUCKET_NAME=$(terraform output -raw bucket_name)" >> $GITHUB_ENV || true
+          echo "BUCKET_NAME=$(terraform output -raw my-secure-devops-bucket-2025)" >> $GITHUB_ENV || true
 
       - name: 🧹 Empty S3 Bucket (if exists)
         if: env.BUCKET_NAME != ''
