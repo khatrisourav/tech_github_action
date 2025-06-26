@@ -107,10 +107,17 @@ jobs:
         working-directory: ./terraform
         run: terraform init
 
-      - name: 🌍 Get Bucket Name
+      - name: 🌍 Get Bucket Name from Terraform (Safe)
         working-directory: ./terraform
         run: |
-          echo "BUCKET_NAME=$(terraform output -raw bucket_name)" >> $GITHUB_ENV || true
+          BUCKET_NAME=$(terraform output -raw bucket_name 2>/dev/null || echo "")
+    
+           if [ -n "$BUCKET_NAME" ]; then
+             echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+               echo "✅ S3 Bucket Name: $BUCKET_NAME"
+             else
+            echo "⚠️ Warning: bucket_name output not found in Terraform state."
+             fi
 
       - name: 🧹 Empty S3 Bucket (if exists)
         if: env.BUCKET_NAME != ''
