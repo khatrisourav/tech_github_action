@@ -1,4 +1,4 @@
-name: Deploy Teacheazy App new
+name: Deploy Teacheazy App New version
 
 on:
   push:
