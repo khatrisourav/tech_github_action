@@ -66,17 +66,9 @@ jobs:
           echo "${{ secrets.EC2_PRIVATE_KEY }}" > key.pem
           chmod 600 key.pem
 
-      - name: 🛠 Install curl and run setup.sh on EC2
+      - name: Run Setup Script on EC2
         run: |
-          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ env.EC2_IP }} <<EOF
-            set -e
-            echo "✅ Updating packages..."
-            sudo apt update -y
-            echo "✅ Installing curl..."
-            sudo apt install -y curl
-            echo "✅ Running setup.sh..."
-            bash -s
-          EOF < ./scripts/setup.sh
+          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ env.EC2_IP }} 'sudo apt update && sudo apt install -y curl && bash -s' < ./scripts/setup.sh
 
       - name: 📦 Deploy App on EC2
         run: |
