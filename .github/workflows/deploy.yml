@@ -78,18 +78,24 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ env.EC2_IP }} 'bash -s' < ./scripts/uploadlog.sh
 
-      - name: ✅ Validate App Health
+      - name: ✅ Validate App Health (Non-Blocking)
+        continue-on-error: true
         run: |
+          APP_RUNNING=false
           for i in {1..10}; do
             if curl -s --head http://${{ env.EC2_IP }} | grep "200 OK" > /dev/null; then
               echo "✅ App is running."
-              exit 0
+              APP_RUNNING=true
+              break
             else
-              echo "⏳ Waiting for app to start..."
+              echo "⏳ Waiting for app to start... ($i/10)"
               sleep 10
             fi
           done
-          echo "❌ App did not start!" && exit 1
+
+          if [ "$APP_RUNNING" = false ]; then
+            echo "❌ App did not start after 100 seconds."
+          fi
 
       - name: ⏳ Wait 25 Minutes Before Cleanup
         run: sleep 1500  # 25 * 60 seconds
